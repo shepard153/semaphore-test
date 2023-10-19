@@ -19,14 +19,6 @@
         version: "{{ branch_name }}"
         force: true
 
-    - name: Install dos2unix
-      become: yes
-      ansible.builtin.apt:
-        name:
-          - dos2unix
-        state: latest
-        update_cache: true
-
     - name: Copy Docker .env file
       ansible.builtin.copy:
         remote_src: true
