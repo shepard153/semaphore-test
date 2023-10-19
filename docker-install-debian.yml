@@ -1,5 +1,5 @@
 - name: install Docker
-  hosts: localhost
+  hosts: all
   become: true
   tasks:
     - name: Install apt-transport-https
