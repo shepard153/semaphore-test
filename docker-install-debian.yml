@@ -1,5 +1,5 @@
 - name: install Docker
-  hosts: "{{ target_host }}"
+  hosts: localhost
   become: true
   tasks:
     - name: Install apt-transport-https
