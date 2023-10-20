@@ -118,5 +118,6 @@
             
     - name: "Start Docker container"
       shell: |
+        cd "/home/{{ user_name }}/wordpress-container"
         docker compose up -d
       become: no
