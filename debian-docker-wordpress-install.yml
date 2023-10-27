@@ -1,0 +1,123 @@
+- name: install Docker
+  hosts: all
+  become: true
+  tasks:
+    - name: Install apt-transport-https
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - lsb-release
+          - gnupg
+          - curl
+        state: latest
+        update_cache: true
+
+    - name: Add signing key
+      ansible.builtin.apt_key:
+        url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg"
+        state: present
+
+    - name: Add repository into sources list
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+        
+    - name: Update all packages to the latest version
+      apt:
+        upgrade: dist
+      
+    - name: Install Docker
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli 
+          - containerd.io 
+          - docker-buildx-plugin 
+          - docker-compose-plugin
+        state: latest
+        update_cache: true
+    
+    - name: Ensure group "docker" exists
+      ansible.builtin.group:
+        name: docker
+        state: present
+        
+    - name: adding ubuntu to docker group
+      user:
+        name: "{{ user_name }}"
+        groups: docker
+        append: yes
+
+    - name: "Create .ssh dir"
+      ansible.builtin.file:
+        path: ".ssh"
+        state: directory
+        owner: "{{ user_name }}"
+
+    - name: generate SSH key id_rsa
+      become: no
+      openssh_keypair:
+        path: "~/.ssh/id_rsa"
+        type: rsa
+        size: 4096
+        state: present
+        force: no
+    
+    - name: "Read a ssh file content"
+      shell: |
+        cat ~/.ssh/id_rsa.pub
+      register: file_content
+      become: no
+
+    - name: "Print ssh key"
+      debug:
+        msg: "{{ file_content.stdout }}"
+
+    - name: Create a directory for wordpress container
+      ansible.builtin.file:
+        path: "/home/{{ user_name }}/wordpress-container"
+        state: directory
+        mode: '0755'
+
+    - name: "Create docker-compose file with contents"
+      copy:
+        dest: "/home/{{ user_name }}/wordpress-container/docker-compose.yml"
+        content: |
+          version: '3.1'
+          services:
+
+            wordpress:
+              image: wordpress
+              restart: always
+              ports:
+                - 8080:80
+              environment:
+                WORDPRESS_DB_HOST: db
+                WORDPRESS_DB_USER: exampleuser
+                WORDPRESS_DB_PASSWORD: examplepass
+                WORDPRESS_DB_NAME: exampledb
+              volumes:
+                - wordpress:/var/www/html
+
+            db:
+              image: mysql:5.7
+              restart: always
+              environment:
+                MYSQL_DATABASE: exampledb
+                MYSQL_USER: exampleuser
+                MYSQL_PASSWORD: examplepass
+                MYSQL_RANDOM_ROOT_PASSWORD: '1'
+              volumes:
+                - db:/var/lib/mysql
+
+          volumes:
+            wordpress:
+            db:
+            
+    - name: "Start Docker container"
+      shell: |
+        cd "/home/{{ user_name }}/wordpress-container"
+        docker compose up -d
+      become: yes
