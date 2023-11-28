@@ -1,0 +1,118 @@
+---
+- name: Run docker containers
+  hosts: all
+  become: no
+  #gather_facts: false
+  tasks:
+    - name: Run ssh-keyscan to add keys to known_hosts
+      ansible.builtin.shell: |
+        rm -rf ~/.ssh/known_hosts
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+#    - name: Clone a github repository
+#      git:
+#        repo: "{{ repo_url }}"
+#        dest: "{{ dest_path }}"
+#        clone: yes
+#        update: yes
+#        #single_branch: false
+#        version: "{{ branch_name }}"
+#        force: true
+
+    - name: Copy Docker .env file
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ dest_path }}/.env.example"
+        dest: "{{ dest_path }}/.env"
+
+    - name: Insert/Update Docker .env vars
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ dest_path }}/.env"
+        regexp: '^{{ item.key }}='
+        line: '{{ item.key }}={{ item.value }}'
+      loop: "{{ hostvars[inventory_hostname].docker | dict2items }}"
+
+    - name: Copy Laravel .env file
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ dest_path }}/environments/.env.laravel.example"
+        dest: "{{ dest_path }}/environments/.env.laravel"
+      when: PROJECT_TYPE == 'laravel'
+
+    - name: Insert/Update Laravel .env vars
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ dest_path }}/environments/.env.laravel"
+        regexp: '^{{ item.key }}='
+        line: '{{ item.key }}={{ item.value }}'
+      loop: "{{ hostvars[inventory_hostname].laravel | dict2items }}"
+      when: PROJECT_TYPE == 'laravel'
+
+    - name: Copy secrets
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ dest_path }}/secrets/example-files/"
+        dest: "{{ dest_path }}/secrets/"
+
+    - name: Get secrets
+      find:
+        paths: "{{ dest_path }}/secrets/"
+        recurse: no
+        patterns: '*'
+        excludes: "*.txt"
+      register: secret_files
+
+    - name: Generate passwords for secrets
+      copy:
+        content: "{{ lookup('community.general.random_string', length=12, base64=True) }}"
+        dest: "{{ item.path }}"
+      loop: "{{ secret_files.files }}"
+      register: copy_results
+      no_log: true
+
+    - name: Get secrets contents
+      slurp:
+        src: "{{ item.path }}"
+      register: secrets
+      loop: "{{ secret_files.files }}"
+      no_log: true
+
+    - name: Format secrets output
+      debug:
+        msg: "{{ item.source | basename }}: {{ item.content | b64decode }}"
+      with_items: "{{ secrets.results }}"
+      register: secrets_output
+      no_log: true
+
+    - name: Print secrets
+      debug:
+        msg: "{{ secrets_output.results | map(attribute='msg') | list }}"
+      register: secrets_list
+
+    - name: Insert DB password into Laravel .env file
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ dest_path }}/environments/.env.laravel"
+        regexp: '^DB_PASSWORD='
+        line: "DB_PASSWORD={{ (secrets_list.msg | select('match', '^mariadb_user_password:')) | map('split', ': ') | first | last }}"
+      when: PROJECT_TYPE == 'laravel'
+
+    - name: Generate remote repo deploy SSH key
+      become: no
+      openssh_keypair:
+        path: "{{ dest_path }}/secrets/remote_repo_deploy_key"
+        type: rsa
+        size: 4096
+        state: present
+        force: yes
+
+    - name: Read a ssh file content
+      shell: |
+        cat {{ dest_path }}/secrets/remote_repo_deploy_key.pub
+      register: file_content
+      become: no
+
+    - name: Print ssh key
+      debug:
+        msg: "{{ file_content.stdout }}"
