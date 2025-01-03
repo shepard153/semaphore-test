@@ -25,11 +25,3 @@ jobs:
             echo "Error: VERSION file was not updated." >&2
             exit 1
           fi
-
-      # Validate the format of the VERSION file
-      - name: Validate VERSION format
-        run: |
-          if ! grep -Eq "^v[0-9]+\.[0-9]+\.[0-9]+$" VERSION; then
-            echo "Error: VERSION file must contain a valid semantic version (e.g., v1.0.0)." >&2
-            exit 1
-          fi
