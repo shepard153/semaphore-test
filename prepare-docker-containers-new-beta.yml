@@ -2,7 +2,6 @@
 - name: Run docker containers
   hosts: all
   become: no
-  #gather_facts: false
   tasks:
     - name: Run ssh-keyscan to add keys to known_hosts
       ansible.builtin.shell: |
@@ -15,7 +14,6 @@
 #        dest: "{{ dest_path }}"
 #        clone: yes
 #        update: yes
-#        #single_branch: false
 #        version: "{{ branch_name }}"
 #        force: true
 
