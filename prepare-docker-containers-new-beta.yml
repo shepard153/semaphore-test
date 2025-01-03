@@ -14,7 +14,6 @@
 #        dest: "{{ dest_path }}"
 #        clone: yes
 #        update: yes
-#        #single_branch: false
 #        version: "{{ branch_name }}"
 #        force: true
 
