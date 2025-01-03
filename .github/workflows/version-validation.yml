@@ -1,9 +1,7 @@
 name: Validate VERSION File
 
 on:
-  pull_request:
-    paths:
-      - 'VERSION'
+  pull_request
 
 jobs:
   validate-version:
