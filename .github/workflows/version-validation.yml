@@ -17,11 +17,8 @@ jobs:
       # Validate that the VERSION file is updated
       - name: Check VERSION file update
         run: |
-          BASE_BRANCH=$(jq -r .base.ref < "$GITHUB_EVENT_PATH")
-          if git diff --name-only origin/$BASE_BRANCH...HEAD | grep -q "^VERSION$"; then
-            echo "VERSION file has been updated."
-          else
-            echo "Error: VERSION file was not updated." >&2
+          if [ "$(git diff --name-only HEAD^ HEAD VERSION)" = "" ]; then
+            echo "Error: No changes detected in the VERSION file." >&2
             exit 1
           fi
 
